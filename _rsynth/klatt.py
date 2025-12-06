@@ -666,6 +666,14 @@ class KlattSynth:
 
         Returns:
             Modulated F0 with flutter applied
+
+        Notes:
+            Flutter is only used when voicing is active (av/avc > 0) because
+            voiceless frames skip _gen_voice() entirely and zero the voicing
+            amps earlier in synth_frame(). That means any phase mismatch here
+            cannot by itself inject voiced energy into fricatives; leakage in
+            voiceless consonants stems from how resonators and voicing amps are
+            gated/reset rather than from the flutter LFO timing.
         """
         if self.flutter <= 0:
             return f0_hz
@@ -673,15 +681,21 @@ class KlattSynth:
         # Port of flutter() from Praat's klatt.cpp lines 165-179
         fla = self.flutter / 50.0          # Flutter amount scaled
         flb = f0_hz / 100.0                # Base F0 scaled
-        flc = math.sin(PI * 12.7 * self._flutter_t)  # Fast sine
-        fld = math.sin(PI * 7.1 * self._flutter_t)   # Medium sine
-        fle = math.sin(PI * 4.7 * self._flutter_t)   # Slow sine
+        # Flutter in the original C code increments "time_count" once per frame
+        # and uses 2 * PI for the sine waves (nsynth.c lines 320-336).
+        # Use the same stepping to keep modulation speed consistent with RSynth.
+        flc = math.sin(2 * PI * 12.7 * self._flutter_t)  # Fast sine
+        fld = math.sin(2 * PI * 7.1 * self._flutter_t)   # Medium sine
+        fle = math.sin(2 * PI * 4.7 * self._flutter_t)   # Slow sine
 
         # Combine the three sines for quasi-random variation
         delta_f0 = fla * flb * (flc + fld + fle) * 10
 
-        # Increment time counter (wraps around to avoid overflow)
-        self._flutter_t += 0.001  # Increment per sample
+        # Increment time counter once per frame and wrap like the original C
+        # implementation. The wrap isn't needed to prevent Python overflow, but
+        # it keeps the phase math identical to RSynth and avoids huge arguments
+        # to sin() that could accumulate floating-point error over long runs.
+        self._flutter_t += 1
         if self._flutter_t > 1000:
             self._flutter_t = 0
 
