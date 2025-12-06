@@ -475,8 +475,18 @@ class FrameGenerator:
                     if j in (14, 15):
                         # Fast smoothing: 0.85 decays in 3 frames vs 0.5 in 7 frames
                         # Scale with speed for consistent proportional smoothing
-                        effective_fast_smooth = 0.85 ** (1.0 / self.speed)
-                        self._filter_state[j] = effective_fast_smooth * val + (1.0 - effective_fast_smooth) * self._filter_state[j]
+                        #
+                        # Clamp voicing targets to zero without smoothing so tiny residuals
+                        # don't keep the synthesizer in the "voiced" path and leak glottal
+                        # energy into voiceless consonants.
+                        if val <= 0.0:
+                            self._filter_state[j] = 0.0
+                        else:
+                            effective_fast_smooth = 0.85 ** (1.0 / self.speed)
+                            self._filter_state[j] = (
+                                effective_fast_smooth * val
+                                + (1.0 - effective_fast_smooth) * self._filter_state[j]
+                            )
                         params.append(self._filter_state[j])
                     else:
                         params.append(self._smooth_param(j, val))
