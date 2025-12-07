@@ -495,18 +495,22 @@ class KlattSynth:
             self.amp_turb = self.amp_avc * 0.05  # Reduced from 0.1 to prevent friction-like artifacts at slow speed
             kopen_param = ep[Param.kopen] if len(ep) > Param.kopen else 0
             if self.kopen_override is not None:
-                self.nopen = max(4, min(self.T0, int(self.kopen_override)))
+                nopen_target = 4 * int(self.kopen_override)
             elif kopen_param > 0:
-                self.nopen = max(4, min(self.T0, int(kopen_param)))
+                nopen_target = 4 * int(kopen_param)
             else:
-                self.nopen = self.T0 // 3
+                nopen_target = self.T0 // 3
+            self.nopen = max(4, min(self.T0, nopen_target))
             # Breathiness (Aturb analogue)
             aturb_param = ep[Param.aturb] if len(ep) > Param.aturb else 0
             breathiness_db = max(self.breathiness_db, aturb_param)
             self.amp_breth = db_to_linear(breathiness_db) * 0.1
-            # Skew: reduce noise modulation start when skew > 0 (like C's nmod adjustment)
+            # Noise modulation start: default to T0/2 like C; allow Kskew to pull it earlier
             kskew = ep[Param.kskew] if len(ep) > Param.kskew else 0
-            self.nmod = self.T0 - max(0, min(self.T0, int(kskew)))
+            nmod_base = self.T0 // 2
+            if kskew > 0:
+                nmod_base = max(0, nmod_base - min(nmod_base, int(kskew)))
+            self.nmod = nmod_base
         else:
             self.T0 = 4
             self.nopen = self.T0
