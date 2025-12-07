@@ -38,8 +38,8 @@ CONFIG = {
     "shimmer": 0.0,   # C default: none
     "flutter": 0,     # C default: none
     # Prosody
-    "flat_intonation": True,
-    "speed": 1,     # 1.0 = C pacing; <1.0 slows down, >1.0 speeds up
+    "flat_intonation": False,
+    "speed": 1.0,     # 1.0 = C pacing; >1.0 slows down (longer durations), <1.0 speeds up
 }
 
 
@@ -58,15 +58,15 @@ def synth_phrase(synth: KlattSynth, frame_gen: FrameGenerator, text: str):
     for f0_hz, params in frame_gen.generate_frames(elements, f0_contour):
         frame_samples = synth.generate_frame(f0_hz, params)
         for sample in frame_samples:
-            # Clip and round to int16 to satisfy PyCharm's type expectations
-            clipped = max(-32767, min(32767, int(round(sample))))
+            # Clip and truncate to int16 to match the C clip() behavior
+            clipped = max(-32767, min(32767, int(sample)))
             audio.append(clipped)
     return audio
 
 
 def main():
     phrases = [
-        "The experimental narrator articulated each extravagantly elongated syllable with deliberate precision, navigating polysyllabic terminology as if it were a casual conversation. Occasionally, an idiosyncratic inflection appeared on otherwise unremarkable vocabulary, producing a curious but comprehensible rhythm. Listeners who appreciated meticulously enunciated language found the performance simultaneously fascinating and exhausting. Nevertheless, the demonstration successfully highlighted characteristic weaknesses in the underlying synthesis algorithm, particularly when confronted with unexpectedly intricate consonant clusters."
+        "The experimental narrator articulated each extravagantly elongated syllable with deliberate precision, navigating polysyllabic terminology as if it were a casual conversation."
     ]
 
     synth = KlattSynth(
