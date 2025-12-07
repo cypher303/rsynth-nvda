@@ -8,3 +8,9 @@ def test_process_text_keeps_unicode_and_returns_str():
     assert isinstance(processed, str)
     assert "five dollars" in processed
     assert "😀" in processed
+
+
+if __name__ == "__main__":
+    import pytest
+
+    raise SystemExit(pytest.main([__file__]))

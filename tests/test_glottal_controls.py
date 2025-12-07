@@ -55,3 +55,9 @@ def test_nmod_defaults_to_half_period_and_respects_kskew():
     synth.params = params
     synth._pitch_sync()
     assert synth.nmod == max(0, half_period - int(params[Param.kskew]))
+
+
+if __name__ == "__main__":
+    import pytest
+
+    raise SystemExit(pytest.main([__file__]))

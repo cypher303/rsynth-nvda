@@ -59,3 +59,9 @@ def test_generate_frame_outputs_int16_range():
     assert all(isinstance(s, int) for s in samples)
     assert min(samples) >= -32767
     assert max(samples) <= 32767
+
+
+if __name__ == "__main__":
+    import pytest
+
+    raise SystemExit(pytest.main([__file__]))

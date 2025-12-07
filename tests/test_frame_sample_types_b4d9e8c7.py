@@ -31,3 +31,9 @@ def test_generate_frame_returns_python_ints_not_bytes():
     # But the Python 3 array module should happily pack the ints for audio I/O.
     packed = array.array("h", frame)
     assert len(packed) == len(frame)
+
+
+if __name__ == "__main__":
+    import pytest
+
+    raise SystemExit(pytest.main([__file__]))

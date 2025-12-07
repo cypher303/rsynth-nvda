@@ -19,3 +19,9 @@ def test_normalize_text_returns_lowercase_string():
     normalized = normalize_text("Hello, WORLD! 2024")
     assert isinstance(normalized, str)
     assert normalized == "hello , world . twenty twenty-four"
+
+
+if __name__ == "__main__":
+    import pytest
+
+    raise SystemExit(pytest.main([__file__]))

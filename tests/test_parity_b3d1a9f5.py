@@ -199,3 +199,8 @@ def test_generate_frame_produces_ints():
     samples = synth.generate_frame(f0_hz, params)
     assert all(isinstance(s, int) for s in samples)
 
+
+if __name__ == "__main__":
+    import pytest
+
+    raise SystemExit(pytest.main([__file__]))

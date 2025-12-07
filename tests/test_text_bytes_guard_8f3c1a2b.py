@@ -13,3 +13,9 @@ def test_text_to_phonemes_returns_str_type():
     result = text_to_phonemes("hello")
     assert isinstance(result, str)
     assert result, "Expected non-empty phoneme output for simple text"
+
+
+if __name__ == "__main__":
+    import pytest
+
+    raise SystemExit(pytest.main([__file__]))
