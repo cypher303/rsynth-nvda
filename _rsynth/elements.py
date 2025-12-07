@@ -2550,11 +2550,14 @@ def _parse_elements_def(def_path: Path):
     }},
     """
     mapping = {}
-    header_re = re.compile(r'^\s*\{"([^"]+)",\s*([0-9]+),\s*([0-9]+),\s*([0-9]+),[^,]*,[^,]*,[^,]*,\s*([0-9]+),\s*\{')
+    header_re = re.compile(
+        r'^\s*\{"([^"]+)",\s*([0-9]+),\s*([0-9]+),\s*([0-9]+),[^,]*,[^,]*,[^,]*,\s*([^,]+)\s*,?'
+    )
     param_re = re.compile(r'^\s*\{\s*([-0-9\.]+)\s*,\s*([-0-9\.]+)\s*,\s*([-0-9\.]+)\s*,\s*([-0-9\.]+)\s*,\s*([-0-9\.]+)\s*\}')
     current = None
     params = []
     rank = du = ud = features = None
+    seen_header = False
 
     with def_path.open() as f:
         for line in f:
@@ -2565,8 +2568,13 @@ def _parse_elements_def(def_path: Path):
                     rank = int(m.group(2))
                     du = int(m.group(3))
                     ud = int(m.group(4))
-                    features = int(m.group(5))
+                    features = m.group(5).strip()
                     params = []
+                    seen_header = True
+                continue
+
+            # Skip lines until we enter the param block
+            if not seen_header and '{' not in line:
                 continue
 
             if line.strip().startswith('}'):
@@ -2581,6 +2589,7 @@ def _parse_elements_def(def_path: Path):
                     }
                 current = None
                 params = []
+                seen_header = False
                 continue
 
             pm = param_re.match(line)

@@ -38,7 +38,7 @@ CONFIG = {
     "shimmer": 0.0,   # C default: none
     "flutter": 0,     # C default: none
     # Prosody
-    "flat_intonation": False,
+    "flat_intonation": True,
     "speed": 1.0,     # 1.0 = C pacing; >1.0 slows down (longer durations), <1.0 speeds up
 }
 
