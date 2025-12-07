@@ -44,7 +44,7 @@ class InterpParam:
     stdy: float    # Steady state value
     prop: float    # Percentage to add to adjacent element
     ed: int        # External duration of transition
-    id: int        # Internal duration of transition
+    internal_duration: int  # Internal duration of transition
     rk: int        # Rank for transition dominance
 
 
@@ -2644,10 +2644,10 @@ def _apply_derived_params():
                 elem.params.append(InterpParam(val, 0.0, 0, 0, 0))
 
         avc = elem.params[Param.avc]
-        elem.params[Param.aturb] = InterpParam(avc.stdy, avc.prop, avc.ed, avc.id, avc.rk)
+        elem.params[Param.aturb] = InterpParam(avc.stdy, avc.prop, avc.ed, avc.internal_duration, avc.rk)
 
         b1 = elem.params[Param.b1]
-        elem.params[Param.b1p] = InterpParam(b1.stdy, b1.prop, b1.ed, b1.id, b1.rk)
+        elem.params[Param.b1p] = InterpParam(b1.stdy, b1.prop, b1.ed, b1.internal_duration, b1.rk)
 
 
 _apply_derived_params()
