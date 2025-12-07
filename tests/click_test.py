@@ -42,6 +42,8 @@ CONFIG = {
     "speed": 1.0,     # 1.0 = C pacing; >1.0 slows down (longer durations), <1.0 speeds up
 }
 
+OUTPUT_DIR = Path(__file__).resolve().parent / "output"
+
 
 def synth_phrase(synth: KlattSynth, frame_gen: FrameGenerator, text: str):
     """Synthesize a phrase into int16 samples."""
@@ -94,7 +96,8 @@ def main():
         combined.extend(synth_phrase(synth, frame_gen, phrase))
         combined.extend(gap)
 
-    out_path = Path(__file__).with_name("click_test.wav")
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = OUTPUT_DIR / "click_test.wav"
     with wave.open(str(out_path), "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
