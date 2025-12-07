@@ -24,3 +24,9 @@ def test_generated_frames_use_full_param_count():
         assert len(params) == klatt.Param.COUNT
         # Existing defaults should remain finite even for padded slots
         assert all(math.isfinite(value) for value in params)
+
+
+if __name__ == "__main__":
+    import pytest
+
+    raise SystemExit(pytest.main([__file__]))
