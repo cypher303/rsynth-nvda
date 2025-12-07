@@ -556,26 +556,31 @@ class KlattSynth:
         """
         self.params = params
 
-        # Check for voicing transition
-        # Reset ALL resonators to prevent voiced energy bleeding into voiceless sounds
+        # Check for voicing transition; reset filters only when entering true silence
         is_voiced = params[Param.av] > 0 or params[Param.avc] > 0
+        is_silence = (
+            params[Param.af] <= 0
+            and params[Param.asp] <= 0
+            and params[Param.ab] <= 0
+            and params[Param.a2] <= 0
+            and params[Param.a3] <= 0
+            and params[Param.a4] <= 0
+            and params[Param.a5] <= 0
+            and params[Param.a6] <= 0
+        )
         if not is_voiced:
-            # Voiceless sound - check if we need to reset
-            if self._was_voiced or not self._voiceless_started:
-                # Reset on: voiced→voiceless transition OR cold start with voiceless
+            # Only reset on voiced→silence (or cold-start silence); let filters decay through frication like C
+            if is_silence and (self._was_voiced or not self._voiceless_started):
                 for r in [self.rnpc, self.rnz, self.r1c, self.r2c, self.r3c,
                           self.r4c, self.r5c, self.rsc, self.rgl,
                           self.r2p, self.r3p, self.r4p, self.r5p, self.r6p, self.rout]:
                     r.reset()
-                # Start noise attack ramp (prevents "h" burst)
-                self._noise_ramp_samples = 0
+                self._noise_ramp_samples = 0  # Restart ramp when we re-enter noise after silence
             self._voiceless_started = True
-            # Zero amplitude variables (normally done in _pitch_sync, but we skip _gen_voice)
             self.amp_av = 0.0
             self.amp_avc = 0.0
             self.amp_turb = 0.0
         else:
-            # Voiced sound - reset the voiceless flag
             self._voiceless_started = False
         self._was_voiced = is_voiced
 

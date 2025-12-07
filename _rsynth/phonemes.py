@@ -8,7 +8,13 @@ Original code copyright (c) 1994,2001-2003 Nick Ing-Simmons, LGPL licensed.
 """
 
 from typing import List, Tuple, Optional
-from .elements import ELEMENTS, ELEMENT_LIST, Element, InterpParam
+from .elements import (
+    ELEMENTS,
+    ELEMENT_LIST,
+    Element,
+    InterpParam,
+    get_element_index,
+)
 
 
 def decline_f0(current_f0: float, elapsed_frames: int, f0_default: float) -> float:
@@ -288,6 +294,21 @@ def phonemes_to_elements(phoneme_string: str, speed: float = 1.0,
         if not matched:
             # Unknown character, skip it
             i += 1
+
+    # Add a trailing pause so the tail decays cleanly even without punctuation.
+    if result:
+        last_elem = ELEMENT_LIST[result[-1][0]]
+        if last_elem.name not in ("Q", "END"):
+            tail_idx = get_element_index("Q")
+            if tail_idx < 0:
+                tail_idx = get_element_index("END")
+            if tail_idx >= 0:
+                tail_elem = ELEMENT_LIST[tail_idx]
+                tail_dur = int(tail_elem.du * speed)
+                if tail_dur <= 0:
+                    tail_dur = max(1, tail_elem.du)
+                result.append((tail_idx, tail_dur))
+                t += tail_dur
 
     # Add final F0 decline to end of utterance (skip in flat mode)
     if not flat_intonation:
