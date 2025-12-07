@@ -10,7 +10,15 @@ This package provides a complete text-to-speech pipeline:
 Original RSynth code copyright (c) 1994-2004 Nick Ing-Simmons, LGPL licensed.
 """
 
-from .klatt import KlattSynth, Speaker, Param, VOICE_IMPULSIVE, VOICE_NATURAL
+from .klatt import (
+    KlattSynth,
+    Speaker,
+    Param,
+    VOICE_IMPULSIVE,
+    VOICE_NATURAL,
+    VOICE_SOOTHING,
+    VOICE_CUSTOM,
+)
 from .elements import ELEMENTS, ELEMENT_LIST, Element
 from .phonemes import phonemes_to_elements, FrameGenerator
 from .text2phone import text_to_phonemes
@@ -21,6 +29,8 @@ __all__ = [
     'Param',
     'VOICE_IMPULSIVE',
     'VOICE_NATURAL',
+    'VOICE_SOOTHING',
+    'VOICE_CUSTOM',
     'ELEMENTS',
     'ELEMENT_LIST',
     'Element',

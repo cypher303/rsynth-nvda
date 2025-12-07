@@ -31,9 +31,42 @@ NATURAL_SAMPLES = [
     -1891, -1045, -1600, -1462, -1384, -1261, -949, -730
 ]
 
+def _generate_soothing_waveform(samples: int = 80) -> list:
+    """
+    Create a gentle Rosenberg-style pulse: half-cosine rise, half-cosine fall,
+    with a small negative tail to soften closure. Returned values are centered
+    around 0 and normalized to roughly match NATURAL_SAMPLES amplitude.
+    """
+    open_len = int(samples * 0.6)
+    close_len = samples - open_len - 5  # leave a few samples for negative tail
+    tail_len = samples - open_len - close_len
+    wave = []
+
+    # Smooth rise (0 -> 1)
+    for i in range(open_len):
+        wave.append(0.5 * (1 - math.cos(math.pi * (i / open_len))))
+
+    # Smooth fall (1 -> 0)
+    for i in range(close_len):
+        wave.append(0.5 * (1 + math.cos(math.pi * (i / close_len))))
+
+    # Small negative tail to mimic glottal closure
+    for i in range(tail_len):
+        frac = i / max(1, tail_len - 1)
+        wave.append(-0.1 * math.sin(math.pi * frac))
+
+    # Normalize to similar scale as NATURAL_SAMPLES (peak around 1200-1500)
+    peak = max(abs(v) for v in wave) or 1.0
+    scale = 1400.0 / peak
+    return [v * scale for v in wave]
+
+SOOTHING_SAMPLES = _generate_soothing_waveform()
+
 # Voice source types
 VOICE_IMPULSIVE = 1  # Simple impulse/ramp (original RSynth)
 VOICE_NATURAL = 2    # LF model natural samples (from Praat)
+VOICE_SOOTHING = 3   # Softened Rosenberg-style pulse
+VOICE_CUSTOM = 4     # User-supplied waveform
 
 
 @dataclass
@@ -206,7 +239,12 @@ class KlattSynth:
     """
 
     def __init__(self, sample_rate: int = 16000, ms_per_frame: float = 10.0,
-                 speaker: Optional[Speaker] = None):
+                 speaker: Optional[Speaker] = None,
+                 voice_source: int = VOICE_NATURAL,
+                 custom_waveform: Optional[List[float]] = None,
+                 kopen_override: Optional[int] = None,
+                 tlt_db: float = 0.0,
+                 breathiness_db: float = 0.0):
         """
         Initialize the synthesizer.
 
@@ -214,10 +252,19 @@ class KlattSynth:
             sample_rate: Output sample rate in Hz
             ms_per_frame: Milliseconds per synthesis frame
             speaker: Speaker characteristics (uses defaults if None)
+            voice_source: VOICE_IMPULSIVE (legacy) or VOICE_NATURAL (LF glottal)
+            custom_waveform: Optional custom pulse table for VOICE_CUSTOM/VOICE_SOOTHING
+            kopen_override: Optional open-phase length (samples at 4x sample rate)
+            tlt_db: Spectral tilt in dB (higher values roll off highs)
+            breathiness_db: Extra breath noise in dB (Aturb analogue)
         """
         self.sample_rate = sample_rate
         self.samples_per_frame = int((sample_rate * ms_per_frame) / 1000)
         self.speaker = speaker or Speaker()
+        self.custom_waveform = custom_waveform
+        self.kopen_override = kopen_override  # If None, defaults to T0//3
+        self.tlt_db = tlt_db
+        self.breathiness_db = breathiness_db
 
         # Current frame parameters
         self.params = [0.0] * Param.COUNT
@@ -235,6 +282,7 @@ class KlattSynth:
         self.amp_af = 0.0      # Frication amplitude
         self.amp_avc = 0.0     # Voice-bar amplitude
         self.amp_turb = 0.0    # Turbulence amplitude
+        self.amp_breth = 0.0   # Breathiness amplitude (Aturb analogue)
 
         # Attack ramp for voiceless sounds (prevents "h" burst)
         self._noise_ramp_samples = 0  # Counter for ramp-up
@@ -290,10 +338,15 @@ class KlattSynth:
         self.flutter = 20
         self._flutter_t = 0  # Time counter for flutter sines
 
-        # Voice source type: VOICE_IMPULSIVE (default) or VOICE_NATURAL
+        # Voice source type: VOICE_IMPULSIVE (legacy) or VOICE_NATURAL (default)
         # Natural uses LF model samples for more realistic glottal source
-        self.voice_source = VOICE_IMPULSIVE
+        self.voice_source = voice_source
         self._sample_pos = 0.0  # Position in natural samples table
+        self._tilt_prev = 0.0
+        if self.tlt_db > 0:
+            self._tilt_alpha = min(0.99, 1 - math.pow(10.0, -self.tlt_db / 20.0))
+        else:
+            self._tilt_alpha = 0.0
 
         # Track voicing state for transition detection (resonator reset)
         self._was_voiced = False
@@ -378,12 +431,18 @@ class KlattSynth:
             self.amp_av = db_to_linear(ep[Param.av])
             self.amp_avc = db_to_linear(ep[Param.avc])
             self.amp_turb = self.amp_avc * 0.05  # Reduced from 0.1 to prevent friction-like artifacts at slow speed
-            self.nopen = self.T0 // 3
+            if self.kopen_override is not None:
+                self.nopen = max(4, min(self.T0, int(self.kopen_override)))
+            else:
+                self.nopen = self.T0 // 3
+            # Breathiness (Aturb analogue)
+            self.amp_breth = db_to_linear(self.breathiness_db)
         else:
             self.T0 = 4
             self.nopen = self.T0
             self.amp_av = 0.0
             self.amp_avc = 0.0
+            self.amp_breth = 0.0
             # Resonator reset is now handled in generate_frame() at frame boundaries
             # to avoid resetting every 4 samples (T0=4 when voiceless)
 
@@ -414,10 +473,16 @@ class KlattSynth:
                 self.nper = 0
                 self._pitch_sync()
 
-            if self.voice_source == VOICE_NATURAL:
-                # Use LF model natural samples for more realistic voice
+            if self.voice_source in (VOICE_NATURAL, VOICE_SOOTHING, VOICE_CUSTOM):
+                if self.voice_source == VOICE_NATURAL:
+                    table = NATURAL_SAMPLES
+                elif self.voice_source == VOICE_SOOTHING:
+                    table = SOOTHING_SAMPLES
+                else:
+                    table = self.custom_waveform or NATURAL_SAMPLES
+
                 # Interpolate through the sample table based on position in period
-                num_samples = len(NATURAL_SAMPLES)
+                num_samples = len(table)
                 alpha = self.nper / self.T0 if self.T0 > 0 else 0
                 pos = alpha * num_samples
                 idx = int(pos)
@@ -425,9 +490,9 @@ class KlattSynth:
 
                 if idx < num_samples - 1:
                     # Linear interpolation between samples
-                    voice = NATURAL_SAMPLES[idx] * (1 - frac) + NATURAL_SAMPLES[idx + 1] * frac
+                    voice = table[idx] * (1 - frac) + table[idx + 1] * frac
                 elif idx < num_samples:
-                    voice = NATURAL_SAMPLES[idx]
+                    voice = table[idx]
                 else:
                     voice = 0
 
@@ -442,6 +507,13 @@ class KlattSynth:
                     voice = 3 * amp * alpha
                 else:
                     voice = amp * ((9 * alpha - 12) * alpha + 3)
+
+            if self.amp_breth > 0:
+                voice += self.amp_breth * noise
+
+            if self._tilt_alpha > 0:
+                voice = voice * (1 - self._tilt_alpha) + self._tilt_prev * self._tilt_alpha
+                self._tilt_prev = voice
 
             self.nper += 1
 
@@ -716,6 +788,7 @@ class KlattSynth:
         self._was_voiced = False
         self._noise_ramp_samples = 0
         self._voiceless_started = False
+        self._tilt_prev = 0.0
 
         # Reset DC blocker state
         self.dc_x1 = 0.0

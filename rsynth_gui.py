@@ -23,7 +23,8 @@ import wx
 # Import from local _rsynth module
 from _rsynth import (
     KlattSynth, Speaker, text_to_phonemes,
-    phonemes_to_elements, FrameGenerator
+    phonemes_to_elements, FrameGenerator,
+    VOICE_IMPULSIVE, VOICE_NATURAL, VOICE_SOOTHING
 )
 
 # Try to import audio playback library
@@ -52,6 +53,10 @@ class RSynthEngine:
             'jitter': 1.5,
             'shimmer': 4.0,
             'flutter': 20,
+            'voice_source': VOICE_NATURAL,
+            'spectral_tilt': 0.0,   # dB
+            'breathiness': 0.0,     # dB (Aturb analogue)
+            'kopen_override': 0.0,  # samples at 4x rate; 0 = auto
             'flat_intonation': False,
             # Formants
             'F4hz': 3900.0,
@@ -108,7 +113,11 @@ class RSynthEngine:
         self.synth = KlattSynth(
             sample_rate=self.sample_rate,
             ms_per_frame=self.ms_per_frame,
-            speaker=self.speaker
+            speaker=self.speaker,
+            voice_source=self.params['voice_source'],
+            kopen_override=int(self.params['kopen_override']) if self.params['kopen_override'] > 0 else None,
+            tlt_db=self.params['spectral_tilt'],
+            breathiness_db=self.params['breathiness']
         )
 
         self.frame_gen = FrameGenerator(
@@ -146,6 +155,10 @@ class RSynthEngine:
         self.synth.jitter = self.params['jitter'] / 100.0
         self.synth.shimmer = self.params['shimmer'] / 100.0
         self.synth.flutter = int(self.params['flutter'])
+        self.synth.voice_source = self.params['voice_source']
+        self.synth.kopen_override = int(self.params['kopen_override']) if self.params['kopen_override'] > 0 else None
+        self.synth.tlt_db = self.params['spectral_tilt']
+        self.synth.breathiness_db = self.params['breathiness']
 
         # Update frame generator (invert rate so higher value = faster speech)
         self.frame_gen.speed = 1.0 / self.params['rate']
@@ -396,6 +409,34 @@ class RSynthFrame(wx.Frame):
         )
         voice_sizer.Add(self.sliders['flutter'], 0, wx.EXPAND | wx.ALL, 2)
 
+        self.sliders['spectral_tilt'] = SliderPanel(
+            scroll, "Spectral Tilt:", 0, 24, 0,
+            unit=" dB", decimal_places=0
+        )
+        voice_sizer.Add(self.sliders['spectral_tilt'], 0, wx.EXPAND | wx.ALL, 2)
+
+        self.sliders['breathiness'] = SliderPanel(
+            scroll, "Breathiness:", 0, 40, 0,
+            unit=" dB", decimal_places=0
+        )
+        voice_sizer.Add(self.sliders['breathiness'], 0, wx.EXPAND | wx.ALL, 2)
+
+        self.sliders['kopen_override'] = SliderPanel(
+            scroll, "Open Phase Override:", 0, 120, 0,
+            unit=" samp@4x (0=auto)", decimal_places=0
+        )
+        voice_sizer.Add(self.sliders['kopen_override'], 0, wx.EXPAND | wx.ALL, 2)
+
+        self.voice_source_radio = wx.RadioBox(
+            scroll,
+            label="Glottal Source",
+            choices=["Natural (smooth)", "Impulsive (bright)", "Soothing (soft)"],
+            majorDimension=1,
+            style=wx.RA_VERTICAL
+        )
+        self.voice_source_radio.SetSelection(0)
+        voice_sizer.Add(self.voice_source_radio, 0, wx.EXPAND | wx.ALL, 5)
+
         # Flat intonation checkbox for robotic monotone voice
         self.flat_intonation_cb = wx.CheckBox(scroll, label="Flat Intonation (robotic)")
         voice_sizer.Add(self.flat_intonation_cb, 0, wx.EXPAND | wx.ALL, 5)
@@ -567,6 +608,15 @@ class RSynthFrame(wx.Frame):
         """Get current parameter values from all sliders and checkboxes."""
         params = {name: slider.get_value() for name, slider in self.sliders.items()}
         params['flat_intonation'] = self.flat_intonation_cb.GetValue()
+        params['voice_source'] = (
+            VOICE_NATURAL
+            if self.voice_source_radio.GetSelection() == 0
+            else VOICE_IMPULSIVE
+            if self.voice_source_radio.GetSelection() == 1
+            else VOICE_SOOTHING
+        )
+        if params['kopen_override'] <= 0:
+            params['kopen_override'] = 0.0
         return params
 
     def _synthesize(self, text):
@@ -695,6 +745,12 @@ class RSynthFrame(wx.Frame):
         for name, slider in self.sliders.items():
             slider.set_value(self.engine.defaults[name])
         self.flat_intonation_cb.SetValue(False)
+        if self.engine.defaults['voice_source'] == VOICE_IMPULSIVE:
+            self.voice_source_radio.SetSelection(1)
+        elif self.engine.defaults['voice_source'] == VOICE_SOOTHING:
+            self.voice_source_radio.SetSelection(2)
+        else:
+            self.voice_source_radio.SetSelection(0)
         self.SetStatusText("Parameters reset to defaults")
 
     def on_save_preset(self, event):
@@ -748,6 +804,13 @@ class RSynthFrame(wx.Frame):
                     self.sliders[name].set_value(value)
                 elif name == 'flat_intonation':
                     self.flat_intonation_cb.SetValue(bool(value))
+                elif name == 'voice_source':
+                    if value == VOICE_IMPULSIVE:
+                        self.voice_source_radio.SetSelection(1)
+                    elif value == VOICE_SOOTHING:
+                        self.voice_source_radio.SetSelection(2)
+                    else:
+                        self.voice_source_radio.SetSelection(0)
 
             # Update engine
             self.engine.update_params(**params)

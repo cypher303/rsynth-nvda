@@ -21,7 +21,25 @@ from _rsynth import (  # noqa: E402
     FrameGenerator,
     phonemes_to_elements,
     text_to_phonemes,
+    VOICE_IMPULSIVE,
+    VOICE_NATURAL,
+    VOICE_SOOTHING
 )
+
+
+CONFIG = {
+    # Audio quality
+    "sample_rate": 22050,       # Common options: 8000, 16000, 22050
+    "ms_per_frame": 10.0,
+    # Glottal source
+    "voice_source": VOICE_NATURAL,  # Options: VOICE_IMPULSIVE, VOICE_SOOTHING, VOICE_NATURAL
+    # Voice quality tweaks
+    "jitter": 0.015,
+    "shimmer": 0.04,
+    "flutter": 20,
+    # Prosody
+    "flat_intonation": False,
+}
 
 
 def synth_phrase(synth: KlattSynth, frame_gen: FrameGenerator, text: str):
@@ -30,6 +48,7 @@ def synth_phrase(synth: KlattSynth, frame_gen: FrameGenerator, text: str):
     elements, f0_contour, _ = phonemes_to_elements(
         phonemes,
         track_word_boundaries=False,
+        flat_intonation=CONFIG["flat_intonation"],
     )
     synth.reset()
     frame_gen.reset()
@@ -43,12 +62,21 @@ def synth_phrase(synth: KlattSynth, frame_gen: FrameGenerator, text: str):
 
 def main():
     phrases = [
-        "The experimental narrator articulated each extravagantly elongated syllable with deliberate precision, navigating polysyllabic terminology as if it were a casual conversation. Occasionally, an idiosyncratic inflection appeared on otherwise unremarkable vocabulary, producing a curious but comprehensible rhythm. Listeners who appreciated meticulously enunciated language found the performance simultaneously fascinating and exhausting. Nevertheless, the demonstration successfully highlighted characteristic weaknesses in the underlying synthesis algorithm, particularly when confronted with unexpectedly intricate consonant clusters.",
-        "Sophisticated observers speculated that successive sequences of sizzling sibilants would stress the system more severely than straightforward sentences. As the session progressed, these softly hissing phrases, suffused with subtle shifts in emphasis, served as a strenuous stress test. Successive “s” and “sh” sounds, sliding seamlessly into “z” and “zh” variants, sometimes generated scarcely noticeable artifacts. Sensitive participants, however, perceived faint static, suggesting a systemic susceptibility to specific spectral features."
+        "The experimental narrator articulated each extravagantly elongated syllable with deliberate precision, navigating polysyllabic terminology as if it were a casual conversation. Occasionally, an idiosyncratic inflection appeared on otherwise unremarkable vocabulary, producing a curious but comprehensible rhythm. Listeners who appreciated meticulously enunciated language found the performance simultaneously fascinating and exhausting. Nevertheless, the demonstration successfully highlighted characteristic weaknesses in the underlying synthesis algorithm, particularly when confronted with unexpectedly intricate consonant clusters."
     ]
 
-    synth = KlattSynth(sample_rate=16000)
-    frame_gen = FrameGenerator(sample_rate=16000)
+    synth = KlattSynth(
+        sample_rate=CONFIG["sample_rate"],
+        ms_per_frame=CONFIG["ms_per_frame"],
+        voice_source=CONFIG["voice_source"],
+    )
+    synth.jitter = CONFIG["jitter"]
+    synth.shimmer = CONFIG["shimmer"]
+    synth.flutter = CONFIG["flutter"]
+
+    frame_gen = FrameGenerator(
+        sample_rate=CONFIG["sample_rate"],
+    )
 
     combined = array.array("h")
     gap = array.array("h", [0] * int(0.2 * synth.sample_rate))  # 200ms silence
@@ -64,7 +92,15 @@ def main():
         wf.setframerate(synth.sample_rate)
         wf.writeframes(combined.tobytes())
 
-    print(f"Wrote {out_path} with {len(phrases)} phrases.")
+    source_label = (
+        "NATURAL" if CONFIG["voice_source"] == VOICE_NATURAL else "IMPULSIVE"
+    )
+    print(
+        f"Wrote {out_path} with {len(phrases)} phrases "
+        f"at {CONFIG['sample_rate']} Hz, source={source_label}, "
+        f"jitter={CONFIG['jitter']}, shimmer={CONFIG['shimmer']}, "
+        f"flutter={CONFIG['flutter']}, flat_intonation={CONFIG['flat_intonation']}"
+    )
 
 
 if __name__ == "__main__":

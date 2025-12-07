@@ -13,6 +13,7 @@ This project is a pure Python implementation of the classic RSynth text-to-speec
 - **CMU Dictionary** - 130,000+ English word pronunciations included
 - **Letter-to-Sound Rules** - Fallback for unknown words
 - **Natural Voice Features** - Jitter, shimmer, and flutter for more natural speech
+- **Glottal Source Choice** - Natural LF-model source is the default; legacy impulsive source is still available
 
 ## Project Structure
 
@@ -72,6 +73,7 @@ We're looking for contributors to help improve this project. Here are the curren
 ```bash
 python rsynth_gui.py
 ```
+In the Voice Quality panel you can choose the glottal source: the default **Natural (LF)** source is smoother, and the legacy **Impulsive** source matches the older RSynth timbre.
 
 ### Using as a Library
 ```python
