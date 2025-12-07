@@ -43,16 +43,8 @@ def synth_phrase(synth: KlattSynth, frame_gen: FrameGenerator, text: str):
 
 def main():
     phrases = [
-        "hello world",
-        "hello world.",
-        "laugh",
-        "scratch",
-        "book",
-        "roof",
-        "tough cough plough dough",
-        "ssssssss",
-        "final s hiss",
-        "click check at end",
+        "The experimental narrator articulated each extravagantly elongated syllable with deliberate precision, navigating polysyllabic terminology as if it were a casual conversation. Occasionally, an idiosyncratic inflection appeared on otherwise unremarkable vocabulary, producing a curious but comprehensible rhythm. Listeners who appreciated meticulously enunciated language found the performance simultaneously fascinating and exhausting. Nevertheless, the demonstration successfully highlighted characteristic weaknesses in the underlying synthesis algorithm, particularly when confronted with unexpectedly intricate consonant clusters.",
+        "Sophisticated observers speculated that successive sequences of sizzling sibilants would stress the system more severely than straightforward sentences. As the session progressed, these softly hissing phrases, suffused with subtle shifts in emphasis, served as a strenuous stress test. Successive “s” and “sh” sounds, sliding seamlessly into “z” and “zh” variants, sometimes generated scarcely noticeable artifacts. Sensitive participants, however, perceived faint static, suggesting a systemic susceptibility to specific spectral features."
     ]
 
     synth = KlattSynth(sample_rate=16000)
