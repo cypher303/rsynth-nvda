@@ -459,7 +459,7 @@ class FrameGenerator:
                 # Start transition (from last to current)
                 if curr_elem.params[j].rk > last_elem.params[j].rk:
                     # Current dominates
-                    t = int(curr_elem.params[j].id * self.speed)
+                    t = int(curr_elem.params[j].internal_duration * self.speed)
                     afrac = curr_elem.params[j].prop * 0.01
                     v = curr_elem.params[j].stdy * (1.0 - afrac) + afrac * last_elem.params[j].stdy
                 else:
@@ -477,7 +477,7 @@ class FrameGenerator:
                     v = next_elem.params[j].stdy * (1.0 - afrac) + afrac * curr_elem.params[j].stdy
                 else:
                     # Current dominates
-                    t = int(curr_elem.params[j].id * self.speed)
+                    t = int(curr_elem.params[j].internal_duration * self.speed)
                     afrac = curr_elem.params[j].prop * 0.01
                     v = curr_elem.params[j].stdy * (1.0 - afrac) + afrac * next_elem.params[j].stdy
                 end_slopes.append((v, t))
