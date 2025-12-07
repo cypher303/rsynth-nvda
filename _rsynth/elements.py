@@ -7,7 +7,9 @@ Each element contains formant parameters for speech synthesis.
 Original data copyright (c) 1994,2001-2004 Nick Ing-Simmons, LGPL licensed.
 """
 
+import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Tuple
 
 
@@ -68,17 +70,34 @@ class Param:
     b1 = 4   # First formant bandwidth
     b2 = 5   # Second formant bandwidth
     b3 = 6   # Third formant bandwidth
-    pn = 7   # Proportion nasal
-    a2 = 8   # Amp of F2 frication
-    a3 = 9   # Amp of F3 frication
-    a4 = 10  # Amp of F4 frication
-    a5 = 11  # Amp of F5 frication
-    a6 = 12  # Amp of F6 frication
-    ab = 13  # Amp of bypass frication
-    av = 14  # Amp of voicing
-    avc = 15 # Amp of voice-bar
-    asp = 16 # Amp of aspiration
-    af = 17  # Amp of frication
+    an = 7   # Parallel nasal pole amplitude (AN/ANP)
+    a1 = 8   # Parallel F1 amplitude
+    a2 = 9   # Parallel/serial F2 frication amplitude
+    a3 = 10  # Parallel F3 frication amplitude
+    a4 = 11  # Parallel F4 frication amplitude
+    a5 = 12  # Parallel F5 frication amplitude
+    a6 = 13  # Parallel F6 frication amplitude
+    ab = 14  # Amp of bypass frication
+    av = 15  # Amp of voicing
+    avc = 16 # Amp of voice-bar
+    asp = 17 # Amp of aspiration
+    af = 18  # Amp of frication
+    kopen = 19   # Open-phase length override (samples at 4x)
+    tlt = 20     # Spectral tilt in dB
+    aturb = 21   # Breathiness (Aturb) in dB
+    kskew = 22   # Skewness (not yet used)
+    b1p = 23     # Parallel F1 bandwidth
+    COUNT = 24
+
+
+DEFAULT_PAD_VALUES = {
+    Param.kopen: 30.0,   # Kopen default (samples at 4x)
+    Param.tlt: 10.0,     # Tilt default (dB)
+    Param.aturb: 0.0,    # Breathiness default
+    Param.kskew: 0.0,    # Skew default
+    Param.b1p: 80.0,     # Parallel F1 BW default (Hz)
+}
+DEFAULT_INTERP = InterpParam(0.0, 0.0, 0, 0, 0)
 
 
 # All elements indexed by name
@@ -2520,6 +2539,109 @@ ELEMENTS = {
         ]
     ),
 }
+
+def _parse_elements_def(def_path: Path):
+    """
+    Parse APP-SPEECH-RSynth/Elements.def to extract per-element parameters.
+
+    The C layout is:
+    {"NAME", rank, du, ud, flags, unicode, sampa, features, {
+        {stdy, prop, ed, id, rk}, ...
+    }},
+    """
+    mapping = {}
+    header_re = re.compile(r'^\s*\{"([^"]+)",\s*([0-9]+),\s*([0-9]+),\s*([0-9]+),[^,]*,[^,]*,[^,]*,\s*([0-9]+),\s*\{')
+    param_re = re.compile(r'^\s*\{\s*([-0-9\.]+)\s*,\s*([-0-9\.]+)\s*,\s*([-0-9\.]+)\s*,\s*([-0-9\.]+)\s*,\s*([-0-9\.]+)\s*\}')
+    current = None
+    params = []
+    rank = du = ud = features = None
+
+    with def_path.open() as f:
+        for line in f:
+            if current is None:
+                m = header_re.match(line)
+                if m:
+                    current = m.group(1)
+                    rank = int(m.group(2))
+                    du = int(m.group(3))
+                    ud = int(m.group(4))
+                    features = int(m.group(5))
+                    params = []
+                continue
+
+            if line.strip().startswith('}'):
+                # End of params for this element
+                if current and params:
+                    mapping[current] = {
+                        'rank': rank,
+                        'du': du,
+                        'ud': ud,
+                        'features': features,
+                        'params': params,
+                    }
+                current = None
+                params = []
+                continue
+
+            pm = param_re.match(line)
+            if pm:
+                stdy = float(pm.group(1))
+                prop = float(pm.group(2))
+                ed = int(float(pm.group(3)))
+                idur = int(float(pm.group(4)))
+                rk = int(float(pm.group(5)))
+                params.append(InterpParam(stdy, prop, ed, idur, rk))
+
+    return mapping
+
+
+def _load_from_elements_def():
+    """Replace element params (and rank/du/ud) from C Elements.def if present."""
+    def_path = Path(__file__).resolve().parents[2] / "APP-SPEECH-RSynth" / "Elements.def"
+    if not def_path.exists():
+        return
+
+    mapping = _parse_elements_def(def_path)
+
+    for name, elem in ELEMENTS.items():
+        if name in mapping:
+            data = mapping[name]
+            elem.rank = data['rank']
+            elem.du = data['du']
+            elem.ud = data['ud']
+            elem.params = list(data['params'])
+        # Pad to full Param.COUNT
+        if len(elem.params) < Param.COUNT:
+            for idx in range(len(elem.params), Param.COUNT):
+                val = DEFAULT_PAD_VALUES.get(idx, 0.0)
+                elem.params.append(InterpParam(val, 0.0, 0, 0, 0))
+
+
+_load_from_elements_def()
+
+
+def _apply_derived_params():
+    """
+    Populate parameters not present in Elements.def with values mirroring the
+    C pipeline:
+      - Aturb follows AVC (Holmes maps breathiness from voice-bar)
+      - B1p follows B1 (Holmes sets B1phz from B1hz each frame)
+    Kopen/TLT/Kskew stay at the global defaults from DEFAULT_PAD_VALUES.
+    """
+    for elem in ELEMENTS.values():
+        if len(elem.params) < Param.COUNT:
+            for idx in range(len(elem.params), Param.COUNT):
+                val = DEFAULT_PAD_VALUES.get(idx, 0.0)
+                elem.params.append(InterpParam(val, 0.0, 0, 0, 0))
+
+        avc = elem.params[Param.avc]
+        elem.params[Param.aturb] = InterpParam(avc.stdy, avc.prop, avc.ed, avc.id, avc.rk)
+
+        b1 = elem.params[Param.b1]
+        elem.params[Param.b1p] = InterpParam(b1.stdy, b1.prop, b1.ed, b1.id, b1.rk)
+
+
+_apply_derived_params()
 
 
 # List of elements in order (for index lookup)

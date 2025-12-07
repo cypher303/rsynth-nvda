@@ -183,7 +183,7 @@ def db_to_linear(dB: float) -> float:
 class Speaker:
     """Voice/speaker characteristics."""
     F0Hz: float = 120.0      # Fundamental frequency
-    Gain0: float = 57.0      # Overall gain in dB
+    Gain0: float = 62.0      # Overall gain in dB
     F4hz: float = 3900.0     # Fourth formant freq
     B4hz: float = 400.0      # Fourth formant bandwidth
     F5hz: float = 4700.0     # Fifth formant freq
@@ -195,6 +195,7 @@ class Speaker:
     B4phz: float = 500.0     # Parallel 4th formant bw
     B5phz: float = 600.0     # Parallel 5th formant bw
     B6phz: float = 800.0     # Parallel 6th formant bw
+    B1phz: float = 80.0      # Parallel 1st formant bw
     # F1/F2/F3 offset and scale (applied to phoneme values)
     F1_offset: float = 0.0   # F1 frequency offset in Hz
     F1_scale: float = 1.0    # F1 frequency multiplier
@@ -213,18 +214,27 @@ class Param:
     b1 = 4   # First formant bandwidth
     b2 = 5   # Second formant bandwidth
     b3 = 6   # Third formant bandwidth
-    pn = 7   # Proportion nasal
-    a2 = 8   # Amp of F2 frication
-    a3 = 9   # Amp of F3 frication
-    a4 = 10  # Amp of F4 frication
-    a5 = 11  # Amp of F5 frication
-    a6 = 12  # Amp of F6 frication
-    ab = 13  # Amp of bypass frication
-    av = 14  # Amp of voicing
-    avc = 15 # Amp of voice-bar
-    asp = 16 # Amp of aspiration
-    af = 17  # Amp of frication
-    COUNT = 18
+    b1 = 4   # First formant bandwidth
+    b2 = 5   # Second formant bandwidth
+    b3 = 6   # Third formant bandwidth
+    an = 7   # Parallel nasal pole amplitude (AN/ANP)
+    a1 = 8   # Parallel F1 amplitude
+    a2 = 9   # Parallel/serial F2 frication amplitude
+    a3 = 10  # Parallel F3 frication amplitude
+    a4 = 11  # Parallel F4 frication amplitude
+    a5 = 12  # Parallel F5 frication amplitude
+    a6 = 13  # Parallel F6 frication amplitude
+    ab = 14  # Amp of bypass frication
+    av = 15  # Amp of voicing
+    avc = 16 # Amp of voice-bar
+    asp = 17 # Amp of aspiration
+    af = 18  # Amp of frication
+    kopen = 19   # Open-phase length override (samples at 4x)
+    tlt = 20     # Spectral tilt in dB
+    aturb = 21   # Breathiness (Aturb) in dB
+    kskew = 22   # Skewness (not yet used)
+    b1p = 23     # Parallel F1 bandwidth
+    COUNT = 24
 
 PARAM_NAMES = ['fn', 'f1', 'f2', 'f3', 'b1', 'b2', 'b3', 'pn',
                'a2', 'a3', 'a4', 'a5', 'a6', 'ab', 'av', 'avc', 'asp', 'af']
@@ -244,7 +254,9 @@ class KlattSynth:
                  custom_waveform: Optional[List[float]] = None,
                  kopen_override: Optional[int] = None,
                  tlt_db: float = 0.0,
-                 breathiness_db: float = 0.0):
+                 breathiness_db: float = 0.0,
+                 synthesis_model: str = "cascade_parallel",
+                 nfcascade: int = 5):
         """
         Initialize the synthesizer.
 
@@ -257,6 +269,8 @@ class KlattSynth:
             kopen_override: Optional open-phase length (samples at 4x sample rate)
             tlt_db: Spectral tilt in dB (higher values roll off highs)
             breathiness_db: Extra breath noise in dB (Aturb analogue)
+            synthesis_model: "cascade_parallel" (default) or "all_parallel"
+            nfcascade: number of cascade formants when cascade_parallel (<=8)
         """
         self.sample_rate = sample_rate
         self.samples_per_frame = int((sample_rate * ms_per_frame) / 1000)
@@ -265,6 +279,9 @@ class KlattSynth:
         self.kopen_override = kopen_override  # If None, defaults to T0//3
         self.tlt_db = tlt_db
         self.breathiness_db = breathiness_db
+        self.synthesis_model = synthesis_model
+        self.nfcascade = max(1, min(8, nfcascade))
+        self._effective_nfcascade = self.nfcascade
 
         # Current frame parameters
         self.params = [0.0] * Param.COUNT
@@ -273,6 +290,7 @@ class KlattSynth:
         self.nper = 0       # Current position in voicing period (*4)
         self.T0 = 4         # Fundamental period in samples * 4
         self.nopen = 0      # Number of samples in open phase
+        self.nmod = 0       # Position to begin noise modulation (for Kskew)
         self.F0Hz = self.speaker.F0Hz
 
         # Amplitude values (converted from dB)
@@ -299,6 +317,9 @@ class KlattSynth:
         self.rgl = Resonator()   # Glottal low-pass
         self.rnz = Resonator()   # Nasal zero (anti-resonator)
         self.rnpc = Resonator()  # Nasal pole
+        self.r8c = Resonator()   # F8 cascade (fixed 7500 Hz)
+        self.r7c = Resonator()   # F7 cascade (fixed 6500 Hz)
+        self.r6c = Resonator()   # F6 cascade
         self.r5c = Resonator()   # F5 cascade
         self.rsc = Resonator()   # Special cascade (3500 Hz)
         self.r4c = Resonator()   # F4 cascade
@@ -307,6 +328,8 @@ class KlattSynth:
         self.r1c = Resonator()   # F1 cascade
 
         # Parallel resonators
+        self.rnp_p = Resonator() # Parallel nasal pole
+        self.r1p = Resonator()   # F1 parallel
         self.r6p = Resonator()   # F6 parallel
         self.r5p = Resonator()   # F5 parallel
         self.r4p = Resonator()   # F4 parallel
@@ -325,6 +348,8 @@ class KlattSynth:
 
         # Speed multiplier
         self.speed = 1.0
+        # Proportion of voiced energy sent through the parallel nasal/F1 branch
+        self.parallel_voice_mix = 1.0 if synthesis_model == "all_parallel" else 0.0
 
         # Voice naturalness parameters
         # Jitter: random variation in pitch period (1-2% typical for natural voice)
@@ -362,6 +387,10 @@ class KlattSynth:
         ep = self.params
         spk = self.speaker
         steps = self.samples_per_frame if interpolate else 0
+        eff_nfcascade = max(1, min(self.nfcascade, 8))
+        if eff_nfcascade >= 7 and sr < 16000:
+            eff_nfcascade = 6
+        self._effective_nfcascade = eff_nfcascade
 
         # Nasal pole and zero (fixed, no interpolation needed)
         a, b, c = set_resonator_coeffs(sr, spk.FNPhz, spk.BNhz, True)
@@ -374,12 +403,26 @@ class KlattSynth:
         a, b, c = set_resonator_coeffs(sr, 3500, 1800, True)
         self.rsc.a, self.rsc.b, self.rsc.c = a, b, c
 
-        # F5, F4 (from speaker settings, don't change per frame)
-        a, b, c = set_resonator_coeffs(sr, spk.F5hz, spk.B5hz, True)
-        self.r5c.a, self.r5c.b, self.r5c.c = a, b, c
+        if eff_nfcascade >= 8:
+            a, b, c = set_resonator_coeffs(sr, 7500, 600, True)
+            self.r8c.a, self.r8c.b, self.r8c.c = a, b, c
 
-        a, b, c = set_resonator_coeffs(sr, spk.F4hz, spk.B4hz, True)
-        self.r4c.a, self.r4c.b, self.r4c.c = a, b, c
+        if eff_nfcascade >= 7:
+            a, b, c = set_resonator_coeffs(sr, 6500, 500, True)
+            self.r7c.a, self.r7c.b, self.r7c.c = a, b, c
+
+        if eff_nfcascade >= 6:
+            a, b, c = set_resonator_coeffs(sr, spk.F6hz, spk.B6hz, True)
+            self.r6c.a, self.r6c.b, self.r6c.c = a, b, c
+
+        # F5, F4 (from speaker settings, don't change per frame)
+        if eff_nfcascade >= 5:
+            a, b, c = set_resonator_coeffs(sr, spk.F5hz, spk.B5hz, True)
+            self.r5c.a, self.r5c.b, self.r5c.c = a, b, c
+
+        if eff_nfcascade >= 4:
+            a, b, c = set_resonator_coeffs(sr, spk.F4hz, spk.B4hz, True)
+            self.r4c.a, self.r4c.b, self.r4c.c = a, b, c
 
         # F3, F2, F1 with speaker offset and scale applied
         # These change per-phoneme, so use interpolation to smooth transitions
@@ -428,21 +471,31 @@ class KlattSynth:
             else:
                 self.T0 = base_T0
 
-            self.amp_av = db_to_linear(ep[Param.av])
+            av_db = max(0.0, ep[Param.av] - 7.0)  # Match C's -7 dB voicing fudge
+            self.amp_av = db_to_linear(av_db)
             self.amp_avc = db_to_linear(ep[Param.avc])
             self.amp_turb = self.amp_avc * 0.05  # Reduced from 0.1 to prevent friction-like artifacts at slow speed
+            kopen_param = ep[Param.kopen] if len(ep) > Param.kopen else 0
             if self.kopen_override is not None:
                 self.nopen = max(4, min(self.T0, int(self.kopen_override)))
+            elif kopen_param > 0:
+                self.nopen = max(4, min(self.T0, int(kopen_param)))
             else:
                 self.nopen = self.T0 // 3
             # Breathiness (Aturb analogue)
-            self.amp_breth = db_to_linear(self.breathiness_db)
+            aturb_param = ep[Param.aturb] if len(ep) > Param.aturb else 0
+            breathiness_db = max(self.breathiness_db, aturb_param)
+            self.amp_breth = db_to_linear(breathiness_db) * 0.1
+            # Skew: reduce noise modulation start when skew > 0 (like C's nmod adjustment)
+            kskew = ep[Param.kskew] if len(ep) > Param.kskew else 0
+            self.nmod = self.T0 - max(0, min(self.T0, int(kskew)))
         else:
             self.T0 = 4
             self.nopen = self.T0
             self.amp_av = 0.0
             self.amp_avc = 0.0
             self.amp_breth = 0.0
+            self.nmod = self.T0
             # Resonator reset is now handled in generate_frame() at frame boundaries
             # to avoid resetting every 4 samples (T0=4 when voiceless)
 
@@ -451,6 +504,14 @@ class KlattSynth:
             a, b, c = set_resonator_coeffs(self.sample_rate, 0, 2 * F0Hz, True)
             self.rgl.a, self.rgl.b, self.rgl.c = a, b, c
             # Note: cascade resonators are now set in generate_frame() with interpolation
+
+        # Update spectral tilt smoothing coefficient if a per-frame tilt is provided
+        tlt_param = ep[Param.tlt] if len(ep) > Param.tlt else 0
+        tilt_db = max(self.tlt_db, tlt_param)
+        if tilt_db > 0:
+            self._tilt_alpha = min(0.99, 1 - math.pow(10.0, -tilt_db / 20.0))
+        else:
+            self._tilt_alpha = 0.0
 
     def _gen_noise(self) -> float:
         """Generate Gaussian-distributed noise."""
@@ -549,29 +610,41 @@ class KlattSynth:
         Gain0 = spk.Gain0 - 3
 
         # Parallel resonators with gain (apply same F2/F3 offset/scale as cascade)
+        # F1 uses speaker offset/scale too for the parallel branch
+        f1_adj = ep[Param.f1] * spk.F1_scale + spk.F1_offset
+        f1_adj = max(200, min(1000, f1_adj))
+
         f2_adj = ep[Param.f2] * spk.F2_scale + spk.F2_offset
         f2_adj = max(700, min(2500, f2_adj))
         a, b, c = set_resonator_coeffs(sr, f2_adj, ep[Param.b2], False)
-        self.r2p.a, self.r2p.b, self.r2p.c = a * db_to_linear(ep[Param.a2]), b, c
+        self.r2p.a, self.r2p.b, self.r2p.c = a * db_to_linear(ep[Param.a2]) * 0.15, b, c
 
         f3_adj = ep[Param.f3] * spk.F3_scale + spk.F3_offset
         f3_adj = max(1500, min(3500, f3_adj))
         a, b, c = set_resonator_coeffs(sr, f3_adj, ep[Param.b3], False)
-        self.r3p.a, self.r3p.b, self.r3p.c = a * db_to_linear(ep[Param.a3]), b, c
+        self.r3p.a, self.r3p.b, self.r3p.c = a * db_to_linear(ep[Param.a3]) * 0.06, b, c
+
+        # Parallel F1 and nasal pole for voiced path
+        b1p_bw = ep[Param.b1p] if len(ep) > Param.b1p else spk.B1phz
+        a, b, c = set_resonator_coeffs(sr, f1_adj, b1p_bw, False)
+        self.r1p.a, self.r1p.b, self.r1p.c = a * db_to_linear(ep[Param.a1]) * 0.4, b, c
+
+        a, b, c = set_resonator_coeffs(sr, spk.FNPhz, spk.BNhz, False)
+        self.rnp_p.a, self.rnp_p.b, self.rnp_p.c = a * db_to_linear(ep[Param.an]) * 0.6, b, c
 
         a, b, c = set_resonator_coeffs(sr, spk.F4hz, spk.B4phz, False)
-        self.r4p.a, self.r4p.b, self.r4p.c = a * db_to_linear(ep[Param.a4]), b, c
+        self.r4p.a, self.r4p.b, self.r4p.c = a * db_to_linear(ep[Param.a4]) * 0.04, b, c
 
         a, b, c = set_resonator_coeffs(sr, spk.F5hz, spk.B5phz, False)
-        self.r5p.a, self.r5p.b, self.r5p.c = a * db_to_linear(ep[Param.a5]), b, c
+        self.r5p.a, self.r5p.b, self.r5p.c = a * db_to_linear(ep[Param.a5]) * 0.022, b, c
 
         a, b, c = set_resonator_coeffs(sr, spk.F6hz, spk.B6phz, False)
-        self.r6p.a, self.r6p.b, self.r6p.c = a * db_to_linear(ep[Param.a6]), b, c
+        self.r6p.a, self.r6p.b, self.r6p.c = a * db_to_linear(ep[Param.a6]) * 0.03, b, c
 
         # Amplitudes
-        self.amp_bypass = db_to_linear(ep[Param.ab])
-        self.amp_asp = db_to_linear(ep[Param.asp])
-        self.amp_af = db_to_linear(ep[Param.af])
+        self.amp_bypass = db_to_linear(ep[Param.ab]) * 0.05
+        self.amp_asp = db_to_linear(ep[Param.asp]) * 0.05
+        self.amp_af = db_to_linear(ep[Param.af]) * 0.25
 
         # Output low-pass filter
         if Gain0 <= 0:
@@ -579,23 +652,38 @@ class KlattSynth:
         a, b, c = set_resonator_coeffs(sr, 0, sr / 2, True)
         self.rout.a, self.rout.b, self.rout.c = a * db_to_linear(Gain0), b, c
 
-    def _filter_sample(self, voice: float, noise: float) -> float:
+    def _filter_sample(self, voice: float, noise: float, raw_voice: float) -> float:
         """Apply cascade and parallel filters to produce output sample."""
-        # Cascade path: voice through nasal and formant resonators
-        voice = self.rnpc.process(voice)
-        voice = self._antiresonator(self.rnz, voice)
-        voice = self.r1c.process(voice)
-        voice = self.r2c.process(voice)
-        voice = self.r3c.process(voice)
-        voice = self.r4c.process(voice)
-        voice = self.rsc.process(voice)
+        cascade_voice = voice
+        if self.synthesis_model != "all_parallel":
+            # Cascade path: voice through nasal and formant resonators
+            cascade_voice = self.rnpc.process(cascade_voice)
+            cascade_voice = self._antiresonator(self.rnz, cascade_voice)
+            if self._effective_nfcascade >= 1:
+                cascade_voice = self.r1c.process(cascade_voice)
+            if self._effective_nfcascade >= 2:
+                cascade_voice = self.r2c.process(cascade_voice)
+            if self._effective_nfcascade >= 3:
+                cascade_voice = self.r3c.process(cascade_voice)
+            if self._effective_nfcascade >= 4:
+                cascade_voice = self.r4c.process(cascade_voice)
+                cascade_voice = self.rsc.process(cascade_voice)
+            if self._effective_nfcascade >= 5:
+                cascade_voice = self.r5c.process(cascade_voice)
+            if self._effective_nfcascade >= 6:
+                cascade_voice = self.r6c.process(cascade_voice)
+            if self._effective_nfcascade >= 7:
+                cascade_voice = self.r7c.process(cascade_voice)
+            if self._effective_nfcascade >= 8:
+                cascade_voice = self.r8c.process(cascade_voice)
 
-        if self.sample_rate > 8000:
-            voice = self.r5c.process(voice)
-
-        # Parallel path: frication noise through parallel resonators
-        # Each parallel resonator processes noise independently and sums
-        parallel = (
+        # Parallel path:
+        #   - Voiced energy through parallel nasal/F1
+        #   - Frication noise through higher parallel resonators
+        parallel_voiced = (
+            self.r1p.process(raw_voice) + self.rnp_p.process(raw_voice)
+        ) * self.parallel_voice_mix
+        parallel_noise = (
             self.r2p.process(noise) +
             self.r3p.process(noise) +
             self.r4p.process(noise) +
@@ -604,8 +692,10 @@ class KlattSynth:
             self.amp_bypass * noise
         )
 
-        # Combine cascade (voiced) and parallel (frication) paths
-        voice = voice + parallel
+        if self.synthesis_model == "all_parallel":
+            voice = parallel_voiced + parallel_noise
+        else:
+            voice = cascade_voice + parallel_voiced + parallel_noise
 
         # Final low-pass and gain
         voice = self.rout.process(voice)
@@ -644,7 +734,8 @@ class KlattSynth:
             # Only reset on voiced→silence (or cold-start silence); let filters decay through frication like C
             if is_silence and (self._was_voiced or not self._voiceless_started):
                 for r in [self.rnpc, self.rnz, self.r1c, self.r2c, self.r3c,
-                          self.r4c, self.r5c, self.rsc, self.rgl,
+                          self.r4c, self.r5c, self.r6c, self.r7c, self.r8c, self.rsc, self.rgl,
+                          self.r1p, self.rnp_p,
                           self.r2p, self.r3p, self.r4p, self.r5p, self.r6p, self.rout]:
                     r.reset()
                 self._noise_ramp_samples = 0  # Restart ramp when we re-enter noise after silence
@@ -684,7 +775,7 @@ class KlattSynth:
                 voice += self.amp_turb * noise
 
             # Reduce noise in second half of glottal open phase
-            if self.nper < self.nopen:
+            if self.nper > self.nmod:
                 noise *= 0.5
 
             # Apply voicing amplitude with shimmer for naturalness
@@ -711,7 +802,7 @@ class KlattSynth:
             noise *= self.amp_af * noise_ramp
 
             # Apply filters
-            sample = self._filter_sample(voice, noise)
+            sample = self._filter_sample(voice, noise, raw_voice=voice)
 
             # Clip to prevent overflow
             sample = max(-32767, min(32767, sample))
@@ -789,13 +880,15 @@ class KlattSynth:
         self._noise_ramp_samples = 0
         self._voiceless_started = False
         self._tilt_prev = 0.0
+        self.nmod = 0
 
         # Reset DC blocker state
         self.dc_x1 = 0.0
         self.dc_y1 = 0.0
 
         # Reset all resonators
-        for r in [self.rgl, self.rnz, self.rnpc, self.r5c, self.rsc,
-                  self.r4c, self.r3c, self.r2c, self.r1c,
+        for r in [self.rgl, self.rnz, self.rnpc, self.r8c, self.r7c, self.r6c,
+                  self.r5c, self.rsc, self.r4c, self.r3c, self.r2c, self.r1c,
+                  self.rnp_p, self.r1p,
                   self.r6p, self.r5p, self.r4p, self.r3p, self.r2p, self.rout]:
             r.reset()

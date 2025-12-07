@@ -29,16 +29,17 @@ from _rsynth import (  # noqa: E402
 
 CONFIG = {
     # Audio quality
-    "sample_rate": 22050,       # Common options: 8000, 16000, 22050
+    "sample_rate": 16000,       # Match C reference defaults
     "ms_per_frame": 10.0,
     # Glottal source
     "voice_source": VOICE_NATURAL,  # Options: VOICE_IMPULSIVE, VOICE_SOOTHING, VOICE_NATURAL
     # Voice quality tweaks
-    "jitter": 0.015,
-    "shimmer": 0.04,
-    "flutter": 20,
+    "jitter": 0.0,    # C default: none
+    "shimmer": 0.0,   # C default: none
+    "flutter": 0,     # C default: none
     # Prosody
-    "flat_intonation": False,
+    "flat_intonation": True,
+    "speed": 1,     # 1.0 = C pacing; <1.0 slows down, >1.0 speeds up
 }
 
 
@@ -49,6 +50,7 @@ def synth_phrase(synth: KlattSynth, frame_gen: FrameGenerator, text: str):
         phonemes,
         track_word_boundaries=False,
         flat_intonation=CONFIG["flat_intonation"],
+        speed=CONFIG["speed"],
     )
     synth.reset()
     frame_gen.reset()
@@ -56,7 +58,9 @@ def synth_phrase(synth: KlattSynth, frame_gen: FrameGenerator, text: str):
     for f0_hz, params in frame_gen.generate_frames(elements, f0_contour):
         frame_samples = synth.generate_frame(f0_hz, params)
         for sample in frame_samples:
-            audio.append(int(max(-32767, min(32767, sample))))
+            # Clip and round to int16 to satisfy PyCharm's type expectations
+            clipped = max(-32767, min(32767, int(round(sample))))
+            audio.append(clipped)
     return audio
 
 
@@ -69,6 +73,8 @@ def main():
         sample_rate=CONFIG["sample_rate"],
         ms_per_frame=CONFIG["ms_per_frame"],
         voice_source=CONFIG["voice_source"],
+        synthesis_model="cascade_parallel",
+        nfcascade=6,
     )
     synth.jitter = CONFIG["jitter"]
     synth.shimmer = CONFIG["shimmer"]
@@ -76,6 +82,9 @@ def main():
 
     frame_gen = FrameGenerator(
         sample_rate=CONFIG["sample_rate"],
+        ms_per_frame=CONFIG["ms_per_frame"],
+        smooth=1.0,  # Match Holmes/C default (no extra smoothing)
+        speed=CONFIG["speed"],
     )
 
     combined = array.array("h")
@@ -92,9 +101,12 @@ def main():
         wf.setframerate(synth.sample_rate)
         wf.writeframes(combined.tobytes())
 
-    source_label = (
-        "NATURAL" if CONFIG["voice_source"] == VOICE_NATURAL else "IMPULSIVE"
-    )
+    if CONFIG["voice_source"] == VOICE_SOOTHING:
+        source_label = "SOOTHING"
+    elif CONFIG["voice_source"] == VOICE_IMPULSIVE:
+        source_label = "IMPULSIVE"
+    else:
+        source_label = "NATURAL"
     print(
         f"Wrote {out_path} with {len(phrases)} phrases "
         f"at {CONFIG['sample_rate']} Hz, source={source_label}, "

@@ -14,6 +14,7 @@ from .elements import (
     Element,
     InterpParam,
     get_element_index,
+    Param,
 )
 
 
@@ -380,11 +381,11 @@ class FrameGenerator:
         self.smooth = smooth
 
         # Smoothing filter state
-        self._filter_state = [0.0] * 18
+        self._filter_state = [0.0] * Param.COUNT
 
     def reset(self):
         """Reset filter state."""
-        self._filter_state = [0.0] * 18
+        self._filter_state = [0.0] * Param.COUNT
 
     def _smooth_param(self, idx: int, value: float) -> float:
         """Apply smoothing filter to parameter, scaled by speed."""
@@ -417,7 +418,7 @@ class FrameGenerator:
         # Initialize filter state from first element
         if elements:
             first_elem = elem_list[elements[0][0]]
-            for j in range(18):
+            for j in range(Param.COUNT):
                 self._filter_state[j] = first_elem.params[j].stdy
 
         # Default F0 contour if none provided
@@ -454,7 +455,7 @@ class FrameGenerator:
             start_slopes = []
             end_slopes = []
 
-            for j in range(18):
+            for j in range(Param.COUNT):
                 # Start transition (from last to current)
                 if curr_elem.params[j].rk > last_elem.params[j].rk:
                     # Current dominates
@@ -484,7 +485,19 @@ class FrameGenerator:
             # Generate frames for this element
             for t in range(dur):
                 params = []
-                for j in range(18):
+                for j in range(Param.COUNT):
+                    if j == Param.aturb:
+                        # Breathiness follows the voice-bar amplitude (Holmes: Aturb = tp[avc])
+                        val = params[Param.avc] if params else self._filter_state[Param.avc]
+                        self._filter_state[j] = val
+                        params.append(val)
+                        continue
+                    if j == Param.b1p:
+                        # Parallel B1 bandwidth mirrors B1hz like the C path
+                        val = params[Param.b1] if params else self._filter_state[Param.b1]
+                        self._filter_state[j] = val
+                        params.append(val)
+                        continue
                     val = interpolate_param(
                         start_slopes[j][0], start_slopes[j][1],
                         end_slopes[j][0], end_slopes[j][1],
@@ -493,7 +506,7 @@ class FrameGenerator:
                     )
                     # Use faster smoothing for voicing to prevent bleed but avoid clicks
                     # av=14, avc=15 need quick transitions (~3 frames) not instant
-                    if j in (14, 15):
+                    if j in (Param.av, Param.avc):
                         # Fast smoothing: 0.85 decays in 3 frames vs 0.5 in 7 frames
                         # Scale with speed for consistent proportional smoothing
                         #

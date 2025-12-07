@@ -68,6 +68,7 @@ class RSynthEngine:
             # Nasal
             'FNPhz': 270.0,
             'BNhz': 500.0,
+            'B1phz': 80.0,
             # Parallel formant bandwidths (frication path)
             'B4phz': 500.0,
             'B5phz': 600.0,
@@ -102,6 +103,7 @@ class RSynthEngine:
             B4phz=self.params['B4phz'],
             B5phz=self.params['B5phz'],
             B6phz=self.params['B6phz'],
+            B1phz=self.params['B1phz'],
             F1_offset=self.params['F1_offset'],
             F1_scale=self.params['F1_scale'] / 100.0,
             F2_offset=self.params['F2_offset'],
@@ -139,6 +141,7 @@ class RSynthEngine:
         self.speaker.F6hz = self.params['F6hz']
         self.speaker.FNPhz = self.params['FNPhz']
         self.speaker.BNhz = self.params['BNhz']
+        self.speaker.B1phz = self.params['B1phz']
         self.speaker.B4phz = self.params['B4phz']
         self.speaker.B5phz = self.params['B5phz']
         self.speaker.B6phz = self.params['B6phz']
@@ -550,6 +553,12 @@ class RSynthFrame(wx.Frame):
             unit=" Hz", decimal_places=0
         )
         nasal_sizer.Add(self.sliders['BNhz'], 0, wx.EXPAND | wx.ALL, 2)
+
+        self.sliders['B1phz'] = SliderPanel(
+            scroll, "Parallel F1 BW:", 40, 400, 80,
+            unit=" Hz", decimal_places=0
+        )
+        nasal_sizer.Add(self.sliders['B1phz'], 0, wx.EXPAND | wx.ALL, 2)
 
         scroll_sizer.Add(nasal_sizer, 0, wx.EXPAND | wx.ALL, 5)
 
