@@ -635,34 +635,36 @@ class KlattSynth:
         f2_adj = ep[Param.f2] * spk.F2_scale + spk.F2_offset
         f2_adj = max(700, min(2500, f2_adj))
         a, b, c = set_resonator_coeffs(sr, f2_adj, ep[Param.b2], False)
-        self.r2p.a, self.r2p.b, self.r2p.c = a * db_to_linear(ep[Param.a2]), b, c
+        # Parallel branch scales mirror the C pipeline (Holmes amplitudes into
+        # Klatt parallel resonators are intentionally attenuated).
+        self.r2p.a, self.r2p.b, self.r2p.c = a * db_to_linear(ep[Param.a2]) * 0.15, b, c
 
         f3_adj = ep[Param.f3] * spk.F3_scale + spk.F3_offset
         f3_adj = max(1500, min(3500, f3_adj))
         a, b, c = set_resonator_coeffs(sr, f3_adj, ep[Param.b3], False)
-        self.r3p.a, self.r3p.b, self.r3p.c = a * db_to_linear(ep[Param.a3]), b, c
+        self.r3p.a, self.r3p.b, self.r3p.c = a * db_to_linear(ep[Param.a3]) * 0.06, b, c
 
         # Parallel F1 and nasal pole for voiced path
         b1p_bw = ep[Param.b1p] if len(ep) > Param.b1p else spk.B1phz
         a, b, c = set_resonator_coeffs(sr, f1_adj, b1p_bw, False)
-        self.r1p.a, self.r1p.b, self.r1p.c = a * db_to_linear(ep[Param.a1]), b, c
+        self.r1p.a, self.r1p.b, self.r1p.c = a * db_to_linear(ep[Param.a1]) * 0.4, b, c
 
         a, b, c = set_resonator_coeffs(sr, spk.FNPhz, spk.BNhz, False)
-        self.rnp_p.a, self.rnp_p.b, self.rnp_p.c = a * db_to_linear(ep[Param.an]), b, c
+        self.rnp_p.a, self.rnp_p.b, self.rnp_p.c = a * db_to_linear(ep[Param.an]) * 0.6, b, c
 
         a, b, c = set_resonator_coeffs(sr, spk.F4hz, spk.B4phz, False)
-        self.r4p.a, self.r4p.b, self.r4p.c = a * db_to_linear(ep[Param.a4]), b, c
+        self.r4p.a, self.r4p.b, self.r4p.c = a * db_to_linear(ep[Param.a4]) * 0.04, b, c
 
         a, b, c = set_resonator_coeffs(sr, spk.F5hz, spk.B5phz, False)
-        self.r5p.a, self.r5p.b, self.r5p.c = a * db_to_linear(ep[Param.a5]), b, c
+        self.r5p.a, self.r5p.b, self.r5p.c = a * db_to_linear(ep[Param.a5]) * 0.022, b, c
 
         a, b, c = set_resonator_coeffs(sr, spk.F6hz, spk.B6phz, False)
-        self.r6p.a, self.r6p.b, self.r6p.c = a * db_to_linear(ep[Param.a6]), b, c
+        self.r6p.a, self.r6p.b, self.r6p.c = a * db_to_linear(ep[Param.a6]) * 0.03, b, c
 
         # Amplitudes
-        self.amp_bypass = db_to_linear(ep[Param.ab])
-        self.amp_asp = db_to_linear(ep[Param.asp])
-        self.amp_af = db_to_linear(ep[Param.af])
+        self.amp_bypass = db_to_linear(ep[Param.ab]) * 0.05
+        self.amp_asp = db_to_linear(ep[Param.asp]) * 0.05
+        self.amp_af = db_to_linear(ep[Param.af]) * 0.25
 
         # Output low-pass filter
         if Gain0 <= 0:
@@ -822,9 +824,9 @@ class KlattSynth:
             # Apply filters
             sample = self._filter_sample(voice, noise, raw_voice=voice)
 
-            # Clip to prevent overflow
+            # Clip and truncate to int16 like the C clip()
             sample = max(-32767, min(32767, sample))
-            samples[i] = sample
+            samples[i] = int(sample)
 
             # Apply smooth coefficient interpolation for F1, F2, F3
             # This creates natural formant transitions between phonemes
