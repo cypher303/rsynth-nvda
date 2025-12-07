@@ -114,7 +114,7 @@ def test_clip_truncates_overflow_to_int16_bounds(monkeypatch):
     params[Param.av] = 0.0
     synth.params = params
 
-    def fake_filter(_voice, _noise, _raw):
+    def fake_filter(_voice, _noise, raw_voice=None, **_kwargs):
         return 40000.7
 
     monkeypatch.setattr(synth, "_filter_sample", fake_filter)
@@ -136,8 +136,10 @@ def test_parallel_fudge_factors_and_noise_scalars():
     synth.params = params
     synth._setup_frame()
 
-    base_a2, _, _ = klatt_mod.set_resonator_coeffs(synth.sample_rate, synth.params[Param.f2], synth.params[Param.b2], False)
-    base_a3, _, _ = klatt_mod.set_resonator_coeffs(synth.sample_rate, synth.params[Param.f3], synth.params[Param.b3], False)
+    f2_adj = max(700, min(2500, synth.params[Param.f2] * synth.speaker.F2_scale + synth.speaker.F2_offset))
+    f3_adj = max(1500, min(3500, synth.params[Param.f3] * synth.speaker.F3_scale + synth.speaker.F3_offset))
+    base_a2, _, _ = klatt_mod.set_resonator_coeffs(synth.sample_rate, f2_adj, synth.params[Param.b2], False)
+    base_a3, _, _ = klatt_mod.set_resonator_coeffs(synth.sample_rate, f3_adj, synth.params[Param.b3], False)
     base_a4, _, _ = klatt_mod.set_resonator_coeffs(synth.sample_rate, synth.speaker.F4hz, synth.speaker.B4phz, False)
     base_a5, _, _ = klatt_mod.set_resonator_coeffs(synth.sample_rate, synth.speaker.F5hz, synth.speaker.B5phz, False)
     base_a6, _, _ = klatt_mod.set_resonator_coeffs(synth.sample_rate, synth.speaker.F6hz, synth.speaker.B6phz, False)
@@ -180,7 +182,7 @@ def test_generate_frame_clips_underflow(monkeypatch):
     synth = _make_synth()
     params = [0.0] * Param.COUNT
 
-    def fake_filter(_voice, _noise, _raw):
+    def fake_filter(_voice, _noise, raw_voice=None, **_kwargs):
         return -40000.0
 
     monkeypatch.setattr(synth, "_filter_sample", fake_filter)
