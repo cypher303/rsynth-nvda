@@ -16,11 +16,10 @@ from .klatt import (
     Param,
     VOICE_IMPULSIVE,
     VOICE_NATURAL,
-    VOICE_SOOTHING,
-    VOICE_CUSTOM,
 )
 from .elements import ELEMENTS, ELEMENT_LIST, Element
-from .phonemes import phonemes_to_elements, FrameGenerator
+from .phonemes import phonemes_to_elements
+from .holmes import FrameGenerator
 from .text2phone import text_to_phonemes
 
 __all__ = [
@@ -29,8 +28,6 @@ __all__ = [
     'Param',
     'VOICE_IMPULSIVE',
     'VOICE_NATURAL',
-    'VOICE_SOOTHING',
-    'VOICE_CUSTOM',
     'ELEMENTS',
     'ELEMENT_LIST',
     'Element',

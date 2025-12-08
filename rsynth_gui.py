@@ -24,7 +24,7 @@ import wx
 from _rsynth import (
     KlattSynth, Speaker, text_to_phonemes,
     phonemes_to_elements, FrameGenerator,
-    VOICE_IMPULSIVE, VOICE_NATURAL, VOICE_SOOTHING
+    VOICE_IMPULSIVE, VOICE_NATURAL
 )
 
 # Try to import audio playback library
@@ -433,7 +433,7 @@ class RSynthFrame(wx.Frame):
         self.voice_source_radio = wx.RadioBox(
             scroll,
             label="Glottal Source",
-            choices=["Natural (smooth)", "Impulsive (bright)", "Soothing (soft)"],
+            choices=["Natural (smooth)", "Impulsive (bright)"],
             majorDimension=1,
             style=wx.RA_VERTICAL
         )
@@ -621,8 +621,6 @@ class RSynthFrame(wx.Frame):
             VOICE_NATURAL
             if self.voice_source_radio.GetSelection() == 0
             else VOICE_IMPULSIVE
-            if self.voice_source_radio.GetSelection() == 1
-            else VOICE_SOOTHING
         )
         if params['kopen_override'] <= 0:
             params['kopen_override'] = 0.0
@@ -756,8 +754,6 @@ class RSynthFrame(wx.Frame):
         self.flat_intonation_cb.SetValue(False)
         if self.engine.defaults['voice_source'] == VOICE_IMPULSIVE:
             self.voice_source_radio.SetSelection(1)
-        elif self.engine.defaults['voice_source'] == VOICE_SOOTHING:
-            self.voice_source_radio.SetSelection(2)
         else:
             self.voice_source_radio.SetSelection(0)
         self.SetStatusText("Parameters reset to defaults")
@@ -816,8 +812,6 @@ class RSynthFrame(wx.Frame):
                 elif name == 'voice_source':
                     if value == VOICE_IMPULSIVE:
                         self.voice_source_radio.SetSelection(1)
-                    elif value == VOICE_SOOTHING:
-                        self.voice_source_radio.SetSelection(2)
                     else:
                         self.voice_source_radio.SetSelection(0)
 

@@ -14,7 +14,7 @@ The Klatt synthesizer generates speech using formant synthesis with:
 import math
 import random
 from dataclasses import dataclass, field
-from typing import List, Optional, Callable
+from typing import List, Optional
 
 PI = math.pi
 
@@ -30,43 +30,9 @@ NATURAL_SAMPLES = [
     203, 230, -235, -286, 23, 107, 92, -91, 38, 464, 443, 176, 98, -784, -2449,
     -1891, -1045, -1600, -1462, -1384, -1261, -949, -730
 ]
-
-def _generate_soothing_waveform(samples: int = 80) -> list:
-    """
-    Create a gentle Rosenberg-style pulse: half-cosine rise, half-cosine fall,
-    with a small negative tail to soften closure. Returned values are centered
-    around 0 and normalized to roughly match NATURAL_SAMPLES amplitude.
-    """
-    open_len = int(samples * 0.6)
-    close_len = samples - open_len - 5  # leave a few samples for negative tail
-    tail_len = samples - open_len - close_len
-    wave = []
-
-    # Smooth rise (0 -> 1)
-    for i in range(open_len):
-        wave.append(0.5 * (1 - math.cos(math.pi * (i / open_len))))
-
-    # Smooth fall (1 -> 0)
-    for i in range(close_len):
-        wave.append(0.5 * (1 + math.cos(math.pi * (i / close_len))))
-
-    # Small negative tail to mimic glottal closure
-    for i in range(tail_len):
-        frac = i / max(1, tail_len - 1)
-        wave.append(-0.1 * math.sin(math.pi * frac))
-
-    # Normalize to similar scale as NATURAL_SAMPLES (peak around 1200-1500)
-    peak = max(abs(v) for v in wave) or 1.0
-    scale = 1400.0 / peak
-    return [v * scale for v in wave]
-
-SOOTHING_SAMPLES = _generate_soothing_waveform()
-
 # Voice source types
 VOICE_IMPULSIVE = 1  # Simple impulse/ramp (original RSynth)
 VOICE_NATURAL = 2    # LF model natural samples (from Praat)
-VOICE_SOOTHING = 3   # Softened Rosenberg-style pulse
-VOICE_CUSTOM = 4     # User-supplied waveform
 
 
 @dataclass
@@ -269,7 +235,6 @@ class KlattSynth:
     def __init__(self, sample_rate: int = 16000, ms_per_frame: float = 10.0,
                  speaker: Optional[Speaker] = None,
                  voice_source: int = VOICE_NATURAL,
-                 custom_waveform: Optional[List[float]] = None,
                  kopen_override: Optional[int] = None,
                  tlt_db: float = 0.0,
                  breathiness_db: float = 0.0,
@@ -283,7 +248,6 @@ class KlattSynth:
             ms_per_frame: Milliseconds per synthesis frame
             speaker: Speaker characteristics (uses defaults if None)
             voice_source: VOICE_IMPULSIVE (legacy) or VOICE_NATURAL (LF glottal)
-            custom_waveform: Optional custom pulse table for VOICE_CUSTOM/VOICE_SOOTHING
             kopen_override: Optional open-phase length (samples at 4x sample rate)
             tlt_db: Spectral tilt in dB (higher values roll off highs)
             breathiness_db: Extra breath noise in dB (Aturb analogue)
@@ -293,7 +257,6 @@ class KlattSynth:
         self.sample_rate = sample_rate
         self.samples_per_frame = int((sample_rate * ms_per_frame) / 1000)
         self.speaker = speaker or Speaker()
-        self.custom_waveform = custom_waveform
         self.kopen_override = kopen_override  # If None, defaults to T0//3
         self.tlt_db = tlt_db
         self.breathiness_db = breathiness_db
@@ -556,13 +519,8 @@ class KlattSynth:
                 self.nper = 0
                 self._pitch_sync()
 
-            if self.voice_source in (VOICE_NATURAL, VOICE_SOOTHING, VOICE_CUSTOM):
-                if self.voice_source == VOICE_NATURAL:
-                    table = NATURAL_SAMPLES
-                elif self.voice_source == VOICE_SOOTHING:
-                    table = SOOTHING_SAMPLES
-                else:
-                    table = self.custom_waveform or NATURAL_SAMPLES
+            if self.voice_source == VOICE_NATURAL:
+                table = NATURAL_SAMPLES
 
                 # Interpolate through the sample table based on position in period
                 num_samples = len(table)

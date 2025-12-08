@@ -1,8 +1,7 @@
 import math
 
-from _rsynth import klatt
+from _rsynth import klatt, FrameGenerator, phonemes_to_elements
 from _rsynth.text2phone import text_to_phonemes
-from _rsynth.phonemes import phonemes_to_elements, FrameGenerator
 
 
 def test_param_names_cover_all_params():

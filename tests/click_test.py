@@ -22,24 +22,34 @@ from _rsynth import (  # noqa: E402
     phonemes_to_elements,
     text_to_phonemes,
     VOICE_IMPULSIVE,
-    VOICE_NATURAL,
-    VOICE_SOOTHING
+    VOICE_NATURAL
 )
 
 
 CONFIG = {
-    # Audio quality
-    "sample_rate": 16000,       # Match C reference defaults
-    "ms_per_frame": 10.0,
-    # Glottal source
-    "voice_source": VOICE_NATURAL,  # Options: VOICE_IMPULSIVE, VOICE_SOOTHING, VOICE_NATURAL
-    # Voice quality tweaks
-    "jitter": 0.0,    # C default: none
-    "shimmer": 0.0,   # C default: none
-    "flutter": 0,     # C default: none
-    # Prosody
+# Knob panel: tweak these in one place to audition different sources/feels.
+# Examples:
+#   voice_source = VOICE_IMPULSIVE  -> closer to C legacy; sharper, more click-revealing.
+#   voice_source = VOICE_NATURAL    -> LF glottal; smoother baseline (default).
+#   flat_intonation = True          -> monotone contour to isolate source artifacts.
+#   speed = 0.8 or 1.2              -> faster/slower pacing to expose transition artifacts.
+# Audio quality
+"sample_rate": 16000,       # Match C reference defaults
+"ms_per_frame": 10.0,
+# Glottal source
+"voice_source": VOICE_NATURAL,  # Options: VOICE_IMPULSIVE, VOICE_NATURAL
+# Voice quality tweaks
+"jitter": 0.0,    # C default: none
+"shimmer": 0.0,   # C default: none
+"flutter": 0,     # C default: none
+# Prosody
     "flat_intonation": False,
     "speed": 1.0,     # 1.0 = C pacing; >1.0 slows down (longer durations), <1.0 speeds up
+}
+
+VOICE_LABELS = {
+    VOICE_IMPULSIVE: "IMPULSIVE",
+    VOICE_NATURAL: "NATURAL",
 }
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
@@ -104,12 +114,7 @@ def main():
         wf.setframerate(synth.sample_rate)
         wf.writeframes(combined.tobytes())
 
-    if CONFIG["voice_source"] == VOICE_SOOTHING:
-        source_label = "SOOTHING"
-    elif CONFIG["voice_source"] == VOICE_IMPULSIVE:
-        source_label = "IMPULSIVE"
-    else:
-        source_label = "NATURAL"
+    source_label = VOICE_LABELS.get(CONFIG["voice_source"], "UNKNOWN")
     print(
         f"Wrote {out_path} with {len(phrases)} phrases "
         f"at {CONFIG['sample_rate']} Hz, source={source_label}, "

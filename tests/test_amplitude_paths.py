@@ -1,9 +1,8 @@
 import math
 
-from _rsynth import Param, text_to_phonemes
+from _rsynth import Param, text_to_phonemes, FrameGenerator, phonemes_to_elements
 from _rsynth import klatt as klatt_mod
 from _rsynth.klatt import KlattSynth
-from _rsynth.phonemes import phonemes_to_elements, FrameGenerator
 
 
 def _make_synth():

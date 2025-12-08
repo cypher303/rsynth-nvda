@@ -3,10 +3,8 @@ import math
 import pytest
 
 from _rsynth import klatt as klatt_mod
-from _rsynth import Param, text_to_phonemes
+from _rsynth import Param, text_to_phonemes, FrameGenerator, phonemes_to_elements, ELEMENTS
 from _rsynth.klatt import KlattSynth
-from _rsynth.elements import ELEMENTS
-from _rsynth.phonemes import FrameGenerator, phonemes_to_elements
 
 
 def _make_synth(sample_rate=16000, f0=120.0, nfcascade=5):

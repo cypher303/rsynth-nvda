@@ -13,9 +13,8 @@ import array
 from pathlib import Path
 from copy import deepcopy
 
-from _rsynth import text_to_phonemes, Param
+from _rsynth import text_to_phonemes, Param, FrameGenerator, phonemes_to_elements
 from _rsynth.klatt import KlattSynth
-from _rsynth.phonemes import FrameGenerator, phonemes_to_elements
 
 
 OUT_DIR = Path(__file__).resolve().parent / "output"

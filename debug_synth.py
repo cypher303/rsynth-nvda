@@ -7,8 +7,7 @@ import sys
 sys.path.insert(0, '.')
 
 from _rsynth.text2phone import say, text_to_phonemes
-from _rsynth.phonemes import phonemes_to_elements, FrameGenerator, ELEMENTS
-from _rsynth.elements import Param
+from _rsynth import FrameGenerator, phonemes_to_elements, ELEMENTS, Param
 
 # Threshold for voicing detection (tiny values like 0.001 should count as voiceless)
 VOICING_THRESHOLD = 0.1

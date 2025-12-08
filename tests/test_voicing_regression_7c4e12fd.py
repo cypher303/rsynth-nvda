@@ -1,9 +1,7 @@
 import statistics
 
-from _rsynth import text_to_phonemes
+from _rsynth import Param, FrameGenerator, phonemes_to_elements, text_to_phonemes
 from _rsynth.klatt import KlattSynth
-from _rsynth.phonemes import FrameGenerator, phonemes_to_elements
-from _rsynth import Param
 
 
 def _frames_for_text(text: str):

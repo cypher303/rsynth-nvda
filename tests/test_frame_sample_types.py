@@ -1,8 +1,7 @@
 import array
 import pytest
 
-from _rsynth import KlattSynth
-from _rsynth.phonemes import FrameGenerator, phonemes_to_elements
+from _rsynth import KlattSynth, FrameGenerator, phonemes_to_elements
 from _rsynth.text2phone import text_to_phonemes
 
 
