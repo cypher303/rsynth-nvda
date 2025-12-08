@@ -7,7 +7,8 @@ Port of phtoelm.c from RSynth.
 Original code copyright (c) 1994,2001-2003 Nick Ing-Simmons, LGPL licensed.
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, Optional
+
 from .elements import (
     ELEMENTS,
     ELEMENT_LIST,

@@ -10,8 +10,7 @@ Original data copyright (c) 1994,2001-2004 Nick Ing-Simmons, LGPL licensed.
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple
-
+from typing import List
 
 # Phonetic features (bit flags)
 vwl = 1 << 0   # Vowel

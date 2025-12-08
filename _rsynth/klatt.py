@@ -13,7 +13,7 @@ The Klatt synthesizer generates speech using formant synthesis with:
 
 import math
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional
 
 PI = math.pi

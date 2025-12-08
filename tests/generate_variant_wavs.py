@@ -7,15 +7,13 @@ Variants:
     (strong af/asp at start, zero av/avc in last 5 frames).
 """
 
-import os
-import wave
 import array
-from pathlib import Path
+import wave
 from copy import deepcopy
+from pathlib import Path
 
 from _rsynth import text_to_phonemes, Param, FrameGenerator, phonemes_to_elements
 from _rsynth.klatt import KlattSynth
-
 
 OUT_DIR = Path(__file__).resolve().parent / "output"
 OUT_DIR.mkdir(exist_ok=True)

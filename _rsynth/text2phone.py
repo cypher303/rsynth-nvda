@@ -11,11 +11,10 @@ Phonemes are in SAMPA format.
 """
 
 import re
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
-from .cmudict import cmu_lookup, get_cmu_dict
+from .cmudict import cmu_lookup
 from .english_rules import apply_rules
-
 
 # Number word tables for NumeralProcessor
 ONES = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',

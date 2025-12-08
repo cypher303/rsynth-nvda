@@ -5,13 +5,13 @@ A wxPython GUI application that exposes rsynth's speech synthesis parameters
 as sliders, with text input, Play, Render to WAV, and Stop buttons.
 """
 
-import sys
-import os
-import wave
 import array
-import threading
-import tempfile
 import json
+import os
+import sys
+import tempfile
+import threading
+import wave
 
 # Add rsynth module path (use local _rsynth copy)
 rsynth_dir = os.path.dirname(os.path.abspath(__file__))

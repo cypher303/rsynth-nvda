@@ -10,8 +10,8 @@ Generates click_test.wav with phrases likely to expose boundary clicks:
 """
 
 import array
-import wave
 import sys
+import wave
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))

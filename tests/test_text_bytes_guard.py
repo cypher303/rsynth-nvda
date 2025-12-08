@@ -1,5 +1,3 @@
-import pytest
-
 from _rsynth.text2phone import text_to_phonemes
 
 

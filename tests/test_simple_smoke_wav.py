@@ -5,8 +5,8 @@ Run: python simple_smoke_wav.py
 """
 
 import array
-import wave
 import sys
+import wave
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))

@@ -5,8 +5,6 @@ Used when words are not found in the CMU dictionary.
 Simplified from the full NRL Report 7948 rules to ~100 lines.
 """
 
-from typing import Optional
-
 # Simple letter to phoneme mappings
 # Used as fallback when CMU dictionary lookup fails
 

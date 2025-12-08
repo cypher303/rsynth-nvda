@@ -9,9 +9,10 @@ along with a copy of the _rsynth source module for NVDA addon reuse.
 """
 
 import os
-import sys
-import subprocess
 import shutil
+import subprocess
+import sys
+
 
 def main():
     # Get the directory of this script
