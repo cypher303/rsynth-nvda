@@ -2635,6 +2635,7 @@ def _apply_derived_params():
     C pipeline:
       - Aturb follows AVC (Holmes maps breathiness from voice-bar)
       - B1p follows B1 (Holmes sets B1phz from B1hz each frame)
+      - Af mirrors Asp when missing to keep early frication energized
     Kopen/TLT/Kskew stay at the global defaults from DEFAULT_PAD_VALUES.
     """
     for elem in ELEMENTS.values():
@@ -2642,6 +2643,14 @@ def _apply_derived_params():
             for idx in range(len(elem.params), Param.COUNT):
                 val = DEFAULT_PAD_VALUES.get(idx, 0.0)
                 elem.params.append(InterpParam(val, 0.0, 0, 0, 0))
+
+        # If legacy element definitions omit Param.af, mirror aspiration so we
+        # still generate frication energy and preserve voicing where expected.
+        if elem.params[Param.af].stdy == 0.0 and elem.params[Param.asp].stdy > 0.0:
+            asp = elem.params[Param.asp]
+            interp_dur = asp.internal_duration or asp.ed or elem.ud
+            end_dur = asp.ed or elem.ud
+            elem.params[Param.af] = InterpParam(asp.stdy, asp.prop, end_dur, interp_dur, asp.rk)
 
         avc = elem.params[Param.avc]
         elem.params[Param.aturb] = InterpParam(avc.stdy, avc.prop, avc.ed, avc.internal_duration, avc.rk)
