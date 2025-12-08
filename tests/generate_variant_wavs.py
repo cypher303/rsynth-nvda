@@ -66,9 +66,9 @@ def synth_frames(frames, sample_rate=16000):
 
 
 def write_wav(path: Path, samples, sample_rate=16000):
-    # PCM16 little-endian
+    """Write PCM16 little-endian WAV."""
     data = array.array("h", samples)
-    with wave.open(path, "wb") as wf:
+    with path.open("wb") as fh, wave.open(fh, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(sample_rate)
